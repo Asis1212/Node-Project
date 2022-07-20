@@ -246,3 +246,67 @@ exports.getUsersBetweenMonths = catchAsync(async(req, res, next) => {
         }
     });
 });
+
+exports.getUsersBetweenDates = catchAsync(async(req, res, next) => {
+    const startDate = (req.query.start);
+    const endDate = (req.query.end);
+    const arrayOfStartDate = startDate.split("-");
+    const arrayOfEndDate = endDate.split("-");
+    
+    // Check if data is valid
+    if(parseInt(arrayOfStartDate[0]) > parseInt(arrayOfEndDate[0])) {
+        return next(new AppError("The start year can not be bigger than the end year", 404));
+    } else if(parseInt(arrayOfStartDate[0]) === parseInt(arrayOfEndDate[0]) &&
+              parseInt(arrayOfStartDate[1]) > parseInt(arrayOfEndDate[1])) {
+        return next(new AppError("The start month can not be bigger than the end month in the same year", 404));
+    } else if(parseInt(arrayOfStartDate[0]) === parseInt(arrayOfEndDate[0]) &&
+              parseInt(arrayOfStartDate[1]) === parseInt(arrayOfEndDate[1]) &&
+              parseInt(arrayOfStartDate[2]) > parseInt(arrayOfEndDate[2])) {
+        return next(new AppError("The start day can not be bigger than the end day in the same year and month", 404));
+    }
+
+    let array =[], object;
+    let date = new Date(startDate);
+    let dateEnd = new Date(endDate);
+    while(date < dateEnd) {
+        object = new Object();
+        object.id= {month: parseInt(date.getMonth()) + 1,
+                    day: parseInt(date.getDate())};
+        object.numRegisteredUsers = 0;
+        object.email = [];
+
+        date.setDate(date.getDate() +1);
+        array.push(object);
+    }
+
+    const result = await User.aggregate([
+        {
+            $match: {
+                registeredDate: {$gte: new Date(startDate),
+                                 $lte: new Date(endDate)}
+            }
+        },
+        {
+            $group: {
+                _id: {month: {$month: '$registeredDate'}, day: {$dayOfMonth: '$registeredDate'}},
+                numRegisteredUsers: {$sum: 1},
+                email: {$push: '$email'}
+            }
+        },
+        {
+            $sort: {_id: 1}
+        }
+    ]);
+
+    result.forEach(temp => {
+        const index = array.findIndex(el => el.id.month === temp._id.month && el.id.day === temp._id.day);
+        array[index].numRegisteredUsers = temp.numRegisteredUsers;
+        array[index].email = temp.email.slice();
+    });
+
+
+    res.status(200).json({
+        status: "success",
+        data: array
+    });
+});

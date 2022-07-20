@@ -22,6 +22,9 @@ router.route("/")
     .get(userController.findAll)
     .post(userController.createUser);
 
+
+router.get("/joinGraph", userController.getUsersBetweenDates);
+
 router.route("/:email")
     .get(userController.findUser)
     .patch(userController.updateUser)
